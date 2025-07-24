@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DinoGame", "DinoGame.csproj", "{9E63B591-321D-BA5F-746E-38749BDF555E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9E63B591-321D-BA5F-746E-38749BDF555E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9E63B591-321D-BA5F-746E-38749BDF555E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9E63B591-321D-BA5F-746E-38749BDF555E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9E63B591-321D-BA5F-746E-38749BDF555E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {79130F71-AF18-41EE-BEBC-F238AA58DE72}
+	EndGlobalSection
+EndGlobal

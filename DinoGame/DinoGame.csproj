@@ -35,4 +35,8 @@
     </None>
   </ItemGroup>
 
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="xcopy /E /C /Y &quot;$(ProjectDir)Tilesets&quot; &quot;$(OutDir)Tilesets&quot;" />
+  </Target>
+
 </Project>

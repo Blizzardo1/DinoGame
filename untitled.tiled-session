@@ -1,0 +1,27 @@
+{
+    "activeFile": "Hero_007.tsx",
+    "expandedProjectPaths": [
+        "."
+    ],
+    "fileStates": {
+        "Hero_007.tsx": {
+            "scaleInDock": 1,
+            "scaleInEditor": 4
+        }
+    },
+    "last.imagePath": "D:/source/repos/DinoGame/DinoGame/Tilesets/Heroes/Hero 007",
+    "openFiles": [
+        "Hero_007.tsx"
+    ],
+    "project": "untitled.tiled-project",
+    "recentFiles": [
+        "Hero_007.tsx"
+    ],
+    "tileset.lastUsedFormat": "tsx",
+    "tileset.margin": 8,
+    "tileset.spacing": 16,
+    "tileset.tileSize": {
+        "height": 16,
+        "width": 16
+    }
+}
