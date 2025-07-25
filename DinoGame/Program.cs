@@ -9,6 +9,7 @@ using System.Xml;
 namespace DinoGame;
 
 internal static class Program {
+    private const string GameName = "Cat Evader";
     internal static Random Rand = new();
     private const int FramesPerSecond = 20;
     private const float Scale = 4f; // Scale factor for rendering tiles
@@ -25,8 +26,6 @@ internal static class Program {
     private static bool _running;
     private static nint _windowPtr;
 
-    private static bool _isNight = true;
-
     private static bool _firstRun = true;
     private static bool _isTutorial = true;
 
@@ -35,6 +34,10 @@ internal static class Program {
 
     private static int _framesToTriggerFade = 0;
     private static ColorFadeEffect _colorFade = new(FadingSteps);
+
+    private static Color _currentBackgroundColor = _colorFade.GetCurrentColor().background;
+    private static Color _currentShadowColor = _colorFade.GetCurrentColor().shadow;
+
 
     /// <summary>
     /// The height of the game window in pixels.
@@ -91,7 +94,7 @@ internal static class Program {
 
     private static void Draw() {
 
-        SetColor(_colorFade.GetNextColor());
+        SetColor(_currentBackgroundColor);
         Sdl.RenderClear(_rendererPtr);
 
         _biome?.Draw();
@@ -110,17 +113,18 @@ internal static class Program {
             $"Is Maxed Jump? {_player.IsMaxJump}",
             $"Is Jump Locked? {_player.IsLockedJump}",
             $"Position Y: {_player.Position.Y}",
-            $"Velocity: {_player.Velocity}");
+            $"Velocity: {_player.Velocity}",
+            $"Alpha: {_colorFade.GetAlpha()}");
         List<string> enemies = [];
         for (int i = 0; i < _enemies!.Count; i++) {
             Enemy enemy = _enemies![i];
             enemies.Add($"Enemy {i + 1} Passed? {enemy.IsPassed}");
         }
-        DebugText(Width / 2, [..enemies]);
+        DebugText(Width / 1.5f, [..enemies]);
 #endif
         RenderScore();
 
-        if(_isTutorial && !_firstRun) {
+        if (!_player!.IsDead && _isTutorial && !_firstRun) {
             string tutorialMessage = "Press Space to evade cats!";
             _tutorialZoom += _tutorialZoomSpeed;
             _font.Size = FontSize * _tutorialZoom;
@@ -130,20 +134,32 @@ internal static class Program {
         }
 
         if (_player!.IsDead) {
-            string message = _firstRun ? "Welcome to Cat Evasion! Press F2 to begin" : "You are Dead. Press F2 to restart";
+            string message = _firstRun ? $"Welcome to {GameName}! Press F2 to begin" : "You are Dead. Press F2 to restart";
             _font.Size = FontSize * 2;
             Size sz = Ttf.MeasureString(_font, message);
             RenderText((Width / 2) - (sz.Width / 2), (Height / 2) - (sz.Height / 2), message);
             _font.Size = FontSize;
         }
 
+        RenderHeader();
+
         Sdl.RenderPresent(_rendererPtr);
+    }
+
+    private static void RenderHeader() {
+        string fmt = GameName;
+        _font.Size = FontSize * 6f;
+        Size sz = Ttf.MeasureString(_font, fmt);
+        RenderText((Width / 2) - (sz.Width / 2), 10, fmt);
+        _font.Size = FontSize;
     }
 
     private static void RenderScore() {
         string fmt = $"Score: {_player!.Score}";
+        _font.Size = FontSize * 1.5f;
         Size sz = Ttf.MeasureString(_font, fmt);
         RenderText(Width - sz.Width - 2, 2, fmt);
+        _font.Size = FontSize;
     }
 
 
@@ -246,7 +262,7 @@ internal static class Program {
             y += _font.Height;
         }
     }
-    private static void RenderText(float x, float y, string text) {
+    private static void RenderText(float x, float y, string text, bool shadow = true ) {
         Color previousColor = Sdl.GetRenderDrawColor(_rendererPtr);
         Color currentColor = new() { R = 255, G = 255, B = 255, A = 255 };
         SetColor(currentColor);
@@ -266,6 +282,11 @@ internal static class Program {
 
         Text txt = Ttf.CreateText(textEngine, _font, text);
 
+        if(shadow) {
+            Ttf.SetTextColor(txt, _currentShadowColor);
+            Ttf.DrawRendererText(txt, x + 2, y + 2);
+        }
+
         Ttf.SetTextColor(txt, currentColor);
         Ttf.DrawRendererText(txt, x, y);
 
@@ -280,6 +301,8 @@ internal static class Program {
         }
 
         _player!.ResetEntity();
+        _colorFade.IsDeath = false;
+        _colorFade.Trigger();
     }
 
     internal static void SetColor(byte r, byte g, byte b, byte a = 255) => Sdl.SetRenderDrawColor(_rendererPtr, r, g, b, a);
@@ -301,6 +324,7 @@ internal static class Program {
                         if (_firstRun) {
                             _firstRun = false;
                         }
+                        _framesToTriggerFade = 0;
                         Reset();
                         break;
                 }
@@ -342,6 +366,8 @@ internal static class Program {
                 break;
         }
 
+        (_currentBackgroundColor, _currentShadowColor) = !_player!.IsDead ? _colorFade.GetNextColor() : _colorFade.FadeToDeath();
+
         if(!_player!.IsDead && _framesToTriggerFade++ > FadingSteps * 20) {
             _framesToTriggerFade = 0;
             _colorFade.Trigger();
@@ -360,6 +386,8 @@ internal static class Program {
         }
 
         if(_player!.IsDead) {
+            _colorFade.IsDeath = true;
+            _colorFade.Trigger();
             if (!_player.IsGrounded) {
                 _player.EndJump();
             }
