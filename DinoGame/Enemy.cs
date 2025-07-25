@@ -6,6 +6,8 @@ namespace DinoGame;
 
 public class Enemy : Entity {
 
+
+
     public Enemy(nint renderer, float scale) : base(renderer,
             Path.Combine("Tilesets", "Enemies", "Enemy 014", "Enemy_014.png"),
             32, 32, scale: scale, flipMode: FlipMode.Horizontal) {
@@ -32,7 +34,7 @@ public class Enemy : Entity {
 
     public override void Attack(Entity? entity) {
         if(entity is null) { return; }
-
+        _isAttacking = true;
         Animation = 4; // Attack
         entity.Die();
     }
@@ -44,22 +46,34 @@ public class Enemy : Entity {
         Animation = 1;
         UpdateDimensions();
         RandSpawn<Enemy>();
+        _isAttacking = false;
     }
 
     public override void Update(Event sdlEvent) {
         if(TileSet is null) {
             return;
         }
-        Frame--;
+        
+
+        if (_isAttacking && Frame <= 0) {
+            Frame = 0;
+            return;
+        }
+
         if (Frame <= 0 ) {
             Frame = (TileSet.Width / TileSet.TileWidth) - 1;
         }
-        Position = Position with { X = Position.X - 6 * Scale }; // Move the enemy left
+
+        if (!_isAttacking) {
+            Position = Position with { X = Position.X - XSpeed * Scale }; // Move the enemy left
+        }
+
+        Frame--;
 
         UpdateHitbox();
 
         if (Position.X + Position.W < 0) {
-            RandSpawn<Enemy>();
+            ResetEntity();
         }
     }
 }

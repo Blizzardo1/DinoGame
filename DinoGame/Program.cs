@@ -2,6 +2,7 @@
 using SharpSDL3.Enums;
 using SharpSDL3.Structs;
 using SharpSDL3.TTF;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Xml;
 
@@ -11,6 +12,9 @@ internal static class Program {
     internal static Random Rand = new();
     private const int FramesPerSecond = 20;
     private const float Scale = 4f; // Scale factor for rendering tiles
+    private const float FontSize = 16f;
+    private const float ZoomSpeed = 0.1f;
+    private const int FadingSteps = 30;
 
     private static readonly FpsTimer _fps = new();
     private static Biome? _biome;
@@ -20,6 +24,17 @@ internal static class Program {
     private static nint _rendererPtr;
     private static bool _running;
     private static nint _windowPtr;
+
+    private static bool _isNight = true;
+
+    private static bool _firstRun = true;
+    private static bool _isTutorial = true;
+
+    private static float _tutorialZoom = 1.5f;
+    private static float _tutorialZoomSpeed = ZoomSpeed;
+
+    private static int _framesToTriggerFade = 0;
+    private static ColorFadeEffect _colorFade = new(FadingSteps);
 
     /// <summary>
     /// The height of the game window in pixels.
@@ -52,6 +67,10 @@ internal static class Program {
         return Console.ReadLine() ?? string.Empty;
     }
 
+    private static void CycleDayNight() {
+        
+    }
+
     private static void Cleanup() {
         if (_font.Handle != nint.Zero) {
             Ttf.CloseFont(_font);
@@ -72,7 +91,7 @@ internal static class Program {
 
     private static void Draw() {
 
-        SetColor(0, 0, 0, 255); // Clear to black
+        SetColor(_colorFade.GetNextColor());
         Sdl.RenderClear(_rendererPtr);
 
         _biome?.Draw();
@@ -84,6 +103,7 @@ internal static class Program {
         }
 #if DEBUG
         DebugText(5,
+            $"Ticks: {Sdl.GetTicks()}",
             $"Player Dead? {_player!.IsDead}",
             $"Is On Ground? {_player.IsGrounded}",
             $"Is Jumping? {_player.IsJumping}",
@@ -91,10 +111,41 @@ internal static class Program {
             $"Is Jump Locked? {_player.IsLockedJump}",
             $"Position Y: {_player.Position.Y}",
             $"Velocity: {_player.Velocity}");
+        List<string> enemies = [];
+        for (int i = 0; i < _enemies!.Count; i++) {
+            Enemy enemy = _enemies![i];
+            enemies.Add($"Enemy {i + 1} Passed? {enemy.IsPassed}");
+        }
+        DebugText(Width / 2, [..enemies]);
 #endif
+        RenderScore();
+
+        if(_isTutorial && !_firstRun) {
+            string tutorialMessage = "Press Space to evade cats!";
+            _tutorialZoom += _tutorialZoomSpeed;
+            _font.Size = FontSize * _tutorialZoom;
+            Size sz = Ttf.MeasureString(_font, tutorialMessage);
+            RenderText((Width / 2) - (sz.Width / 2), (Height / 2) - (sz.Height / 2), tutorialMessage);
+            _font.Size = FontSize;
+        }
+
+        if (_player!.IsDead) {
+            string message = _firstRun ? "Welcome to Cat Evasion! Press F2 to begin" : "You are Dead. Press F2 to restart";
+            _font.Size = FontSize * 2;
+            Size sz = Ttf.MeasureString(_font, message);
+            RenderText((Width / 2) - (sz.Width / 2), (Height / 2) - (sz.Height / 2), message);
+            _font.Size = FontSize;
+        }
 
         Sdl.RenderPresent(_rendererPtr);
     }
+
+    private static void RenderScore() {
+        string fmt = $"Score: {_player!.Score}";
+        Size sz = Ttf.MeasureString(_font, fmt);
+        RenderText(Width - sz.Width - 2, 2, fmt);
+    }
+
 
     private static void LoadAssets() {
         _biome = new(_rendererPtr, Scale);
@@ -130,8 +181,6 @@ internal static class Program {
             return;
         }
 
-        
-
         _rendererPtr = Sdl.CreateRenderer(_windowPtr, "opengl");
 
         if (_rendererPtr == nint.Zero) {
@@ -147,7 +196,7 @@ internal static class Program {
             Cleanup();
             return;
         }
-        _font = Ttf.OpenFont("C:\\Windows\\Fonts\\consola.ttf", 16);
+        _font = Ttf.OpenFont("C:\\Windows\\Fonts\\consola.ttf", FontSize);
         if (_font.Handle == nint.Zero) {
             Sdl.LogError(LogCategory.Error, $"Failed to open font: consola.ttf. {Sdl.GetError()}");
             Cleanup();
@@ -158,25 +207,27 @@ internal static class Program {
         UpdateWindowDimensions();
         Sdl.LogInfo(LogCategory.Application, "Starting game loop...");
         _running = true;
-        Span<bool> keyboardState = Sdl.GetKeyboardState(out int numKeys);
-
+        Span<bool> keyboardState;
         while (_running) {
-            keyboardState = Sdl.GetKeyboardState(out numKeys);
+            keyboardState = Sdl.GetKeyboardState(out _);
             _fps.Start();
 
             _ = Sdl.PollEvent(out Event @event);
 
-            
+
             Update(@event);
             Draw();
 
             if (keyboardState[(int)Scancode.Space]) {
+                if (_isTutorial) {
+                    _isTutorial = false;
+                }
                 _player!.Jump();
             } else if (!keyboardState[(int)Scancode.Space]) {
                 _player!.EndJump();
             }
 
-                uint delta = (uint)_fps.GetTicks();
+            uint delta = (uint)_fps.GetTicks();
             if (delta < 1000 / FramesPerSecond) {
                 Sdl.Delay((1000 / FramesPerSecond) - delta);
             }
@@ -247,6 +298,9 @@ internal static class Program {
                         _running = false;
                         break;
                     case Scancode.F2:
+                        if (_firstRun) {
+                            _firstRun = false;
+                        }
                         Reset();
                         break;
                 }
@@ -288,13 +342,30 @@ internal static class Program {
                 break;
         }
 
+        if(!_player!.IsDead && _framesToTriggerFade++ > FadingSteps * 20) {
+            _framesToTriggerFade = 0;
+            _colorFade.Trigger();
+        }
+
+        if (_isTutorial) {
+
+            if (_tutorialZoom < 1.5f) {
+                _tutorialZoom = 1.5f;
+                _tutorialZoomSpeed = ZoomSpeed;
+            }
+
+            if( _tutorialZoom > 2.0f) {
+                _tutorialZoomSpeed = -ZoomSpeed;
+            }
+        }
+
         if(_player!.IsDead) {
             if (!_player.IsGrounded) {
                 _player.EndJump();
             }
-            string message = "You are Dead. Press F2 to restart";
-            Size sz = Ttf.MeasureString(_font, message);
-            RenderText((Width / 2) - (sz.Width / 2), (Height / 2) - (sz.Height / 2), message);
+            _player.Update(sdlEvent);
+            Enemy? enemy = _enemies.FirstOrDefault(e => e.IsAttacking);
+            enemy?.Update(sdlEvent);
             return;
         }
 
@@ -303,6 +374,15 @@ internal static class Program {
         if (_enemies is not null) {
             foreach (Enemy e in _enemies) {
                 e.Update(sdlEvent);
+
+                if(e.IsPassed) {
+                    continue;
+                }
+
+                if(e.EndsCollisionX(_player!)) {
+                    _player!.AddScore(1);
+                }
+
                 if(e.Collides(_player)) {
                     e.Attack(_player!);
                 }

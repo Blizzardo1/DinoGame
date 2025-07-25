@@ -7,13 +7,13 @@ namespace DinoGame;
 public class Player : Entity {
     private const float Gravity = 0.25f;
     private const float CVelocityUp = -48f;
-    private const float CVelocityDown = 48f;
+    private const float CVelocityDown = 24f;
     private float _velocity = 0f;
     private bool _isGrounded = true;
     private bool _isJumping = false;
     private bool _isMaxJump = false;
     private bool _lockedJump = false;
-
+    private int _score = 0;
 
     private float MaxHeight => Program.GetFloorY(TileSet) - 400;
 
@@ -25,11 +25,17 @@ public class Player : Entity {
 
     public float Velocity => _velocity;
 
+    public int Score => _score;
+
 
     public Player(nint renderer, float scale) : base(renderer,
             Path.Combine("Tilesets", "Heroes", "Hero 007", "Hero_007.png"),
             32, 32, scale: scale) {
         ResetEntity();
+    }
+
+    public void AddScore(int score) {
+        _score += score;
     }
 
     public void Jump() {
@@ -91,6 +97,7 @@ public class Player : Entity {
     public override void ResetEntity() {
         Animation = 1;
         _isDead = false;
+        _score = 0;
         UpdateDimensions();
     }
 
@@ -114,7 +121,9 @@ public class Player : Entity {
             _velocity = 0f;
             _isGrounded = true; // Player is grounded again
             _isMaxJump = false;
-            Animation = 1; // Reset to walking animation
+            if (!_isDead) {
+                Animation = 1; // Reset to walking animation
+            }
         }
 
         UpdateHitbox();
