@@ -29,6 +29,9 @@ internal static class Program {
     private static bool _firstRun = true;
     private static bool _isTutorial = true;
 
+    private static bool _deathTriggered = false;
+    private static bool _resetTriggered = false;
+
     private static float _tutorialZoom = 1.5f;
     private static float _tutorialZoomSpeed = ZoomSpeed;
 
@@ -299,9 +302,9 @@ internal static class Program {
         foreach(Enemy e in _enemies!) {
             e.ResetEntity();
         }
-
+        _deathTriggered = false;
+        _resetTriggered = true;
         _player!.ResetEntity();
-        _colorFade.IsDeath = false;
         _colorFade.Trigger();
     }
 
@@ -366,7 +369,19 @@ internal static class Program {
                 break;
         }
 
-        (_currentBackgroundColor, _currentShadowColor) = !_player!.IsDead ? _colorFade.GetNextColor() : _colorFade.FadeToDeath();
+        if (_deathTriggered && !_colorFade.IsTriggered) {
+            _currentBackgroundColor = _colorFade.Maroon;
+            _currentShadowColor = _colorFade.Transparent with { A = _colorFade.GetAlpha() };
+        } else if (_resetTriggered && _colorFade.IsTriggered) {
+            (_currentBackgroundColor, _currentShadowColor) = _colorFade.ResetDeath();
+            if (_framesToTriggerFade++ > FadingSteps) {
+                _framesToTriggerFade = 0;
+                _resetTriggered = false;
+            }
+        }
+        else {
+            (_currentBackgroundColor, _currentShadowColor) = !_player!.IsDead ? _colorFade.GetNextColor() : _colorFade.FadeToDeath();
+        }
 
         if(!_player!.IsDead && _framesToTriggerFade++ > FadingSteps * 20) {
             _framesToTriggerFade = 0;
@@ -386,8 +401,12 @@ internal static class Program {
         }
 
         if(_player!.IsDead) {
-            _colorFade.IsDeath = true;
-            _colorFade.Trigger();
+            if (!_colorFade.IsTriggered && !_deathTriggered) {
+                _deathTriggered = true;
+                _framesToTriggerFade = 0;
+                _colorFade.Trigger();
+            }
+
             if (!_player.IsGrounded) {
                 _player.EndJump();
             }
