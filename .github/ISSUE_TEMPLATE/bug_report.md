@@ -11,11 +11,12 @@ assignees: ''
 A clear and concise description of what the bug is.
 
 **To Reproduce**
-Steps to reproduce the behavior:
+Steps to get Call Stack and affected variables:
 1. Go to your Debugger
 2. Click on Call Stack
 3. Copy the Stack Trace and paste it here
-4. Explain what you were trying to do
+4. Identify the affected variable(s)
+5. Explain what you were trying to do
 
 **Expected behavior**
 A clear and concise description of what you expected to happen.
