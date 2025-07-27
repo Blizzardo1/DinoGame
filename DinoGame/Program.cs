@@ -1,10 +1,29 @@
-﻿using SharpSDL3;
+﻿/***
+     A Game where you need to evade the enemy to gain points.
+    Copyright (C) 2025  Adonis Deliannis (Blizzardo1)
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
+using DinoGame.Effects;
+using DinoGame.Entities;
+using SharpSDL3;
 using SharpSDL3.Enums;
 using SharpSDL3.Structs;
 using SharpSDL3.TTF;
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
-using System.Xml;
+using System.Diagnostics;
 
 namespace DinoGame;
 
@@ -13,9 +32,8 @@ internal static class Program {
     internal static Random Rand = new();
     private const int FramesPerSecond = 20;
     private const float Scale = 4f; // Scale factor for rendering tiles
-    private const float FontSize = 16f;
-    private const float ZoomSpeed = 0.1f;
-    private const int FadingSteps = 30;
+    internal const float FontSize = 16f;
+
 
     private static readonly FpsTimer _fps = new();
     private static Biome? _biome;
@@ -23,24 +41,23 @@ internal static class Program {
     private static Font _font;
     private static Player? _player;
     private static nint _rendererPtr;
-    private static bool _running;
     private static nint _windowPtr;
 
-    private static bool _firstRun = true;
+    private static bool _isRunning;
+    private static bool _isFirstRun = true;
     private static bool _isTutorial = true;
+    private static bool _isLicenseShown = false;
+    private static bool _isPaused = false;
 
-    private static bool _deathTriggered = false;
-    private static bool _resetTriggered = false;
+    private static ZoomTextEffect _licenseText;
+    private static ZoomTextEffect _tutorialText;
+    private static StaticTextEffect _notificationText;
+    private static StaticTextEffect _gameTitle;
+    private static StaticTextEffect _score;
+    private static StaticTextEffect _memoryUsage;
 
-    private static float _tutorialZoom = 1.5f;
-    private static float _tutorialZoomSpeed = ZoomSpeed;
-
-    private static int _framesToTriggerFade = 0;
-    private static ColorFadeEffect _colorFade = new(FadingSteps);
-
-    private static Color _currentBackgroundColor = _colorFade.GetCurrentColor().background;
-    private static Color _currentShadowColor = _colorFade.GetCurrentColor().shadow;
-
+    internal static Player? Player => _player;
+    internal static Biome? Biome => _biome;
 
     /// <summary>
     /// The height of the game window in pixels.
@@ -73,11 +90,13 @@ internal static class Program {
         return Console.ReadLine() ?? string.Empty;
     }
 
-    private static void CycleDayNight() {
-        
-    }
-
     private static void Cleanup() {
+        debugText.ForEach(t => t.Dispose());
+        debugText.Clear();
+
+        enemyText.ForEach(t => t.Dispose());
+        enemyText.Clear();
+
         if (_font.Handle != nint.Zero) {
             Ttf.CloseFont(_font);
             _font = default; // Reset the font to default
@@ -97,7 +116,7 @@ internal static class Program {
 
     private static void Draw() {
 
-        SetColor(_currentBackgroundColor);
+        SetColor(_biome!.CurrentBackgroundColor);
         Sdl.RenderClear(_rendererPtr);
 
         _biome?.Draw();
@@ -108,7 +127,7 @@ internal static class Program {
             }
         }
 #if DEBUG
-        DebugText(5,
+        UpdateDebugText(debugText,
             $"Ticks: {Sdl.GetTicks()}",
             $"Player Dead? {_player!.IsDead}",
             $"Is On Ground? {_player.IsGrounded}",
@@ -117,52 +136,34 @@ internal static class Program {
             $"Is Jump Locked? {_player.IsLockedJump}",
             $"Position Y: {_player.Position.Y}",
             $"Velocity: {_player.Velocity}",
-            $"Alpha: {_colorFade.GetAlpha()}");
+            $"Alpha: {_biome!.ColorFadeEffect.GetAlpha()}");
         List<string> enemies = [];
         for (int i = 0; i < _enemies!.Count; i++) {
             Enemy enemy = _enemies![i];
             enemies.Add($"Enemy {i + 1} Passed? {enemy.IsPassed}");
         }
-        DebugText(Width / 1.5f, [..enemies]);
+        UpdateDebugText(enemyText, [..enemies]);
+        debugText.ForEach(t => t.Draw());
+        enemyText.ForEach(t => t.Draw());
 #endif
-        RenderScore();
+        _score.Draw();
+        _memoryUsage.Draw();
 
-        if (!_player!.IsDead && _isTutorial && !_firstRun) {
-            string tutorialMessage = "Press Space to evade cats!";
-            _tutorialZoom += _tutorialZoomSpeed;
-            _font.Size = FontSize * _tutorialZoom;
-            Size sz = Ttf.MeasureString(_font, tutorialMessage);
-            RenderText((Width / 2) - (sz.Width / 2), (Height / 2) - (sz.Height / 2), tutorialMessage);
-            _font.Size = FontSize;
+        if (!_player!.IsDead && _isTutorial && !_isFirstRun) {
+            _tutorialText.Draw();
         }
 
         if (_player!.IsDead) {
-            string message = _firstRun ? $"Welcome to {GameName}! Press F2 to begin" : "You are Dead. Press F2 to restart";
-            _font.Size = FontSize * 2;
-            Size sz = Ttf.MeasureString(_font, message);
-            RenderText((Width / 2) - (sz.Width / 2), (Height / 2) - (sz.Height / 2), message);
-            _font.Size = FontSize;
+            _notificationText.Draw();
         }
 
-        RenderHeader();
+        _gameTitle.Draw();
+
+        if (_isLicenseShown) {
+            _licenseText.Draw();
+        }
 
         Sdl.RenderPresent(_rendererPtr);
-    }
-
-    private static void RenderHeader() {
-        string fmt = GameName;
-        _font.Size = FontSize * 6f;
-        Size sz = Ttf.MeasureString(_font, fmt);
-        RenderText((Width / 2) - (sz.Width / 2), 10, fmt);
-        _font.Size = FontSize;
-    }
-
-    private static void RenderScore() {
-        string fmt = $"Score: {_player!.Score}";
-        _font.Size = FontSize * 1.5f;
-        Size sz = Ttf.MeasureString(_font, fmt);
-        RenderText(Width - sz.Width - 2, 2, fmt);
-        _font.Size = FontSize;
     }
 
 
@@ -177,6 +178,19 @@ internal static class Program {
 
         // 0, 0 is Enemy Idle
         // 0, 1 is Enemy Walking
+        _memoryUsage = new(_rendererPtr, $"Memory Usage: 0 MB", _font, FontSize, Scale);
+        
+        _gameTitle = new(_rendererPtr, GameName, _font, FontSize * 6f, Scale);
+
+        _tutorialText = new(_rendererPtr, "Press space to evade cats!", _font, 1.5f, 2f, Scale);
+
+        _licenseText = new(_rendererPtr,
+            @"DinoGame version 1, Copyright (C) 2025 Adonis Deliannis (Blizzardo1)
+DinoGame comes with ABSOLUTELY NO WARRANTY; This is free software,
+and you are welcome to redistribute it under certain conditions.", _font, 0.02f, 1.2f, Scale);
+        _notificationText = new(_rendererPtr, $"Welcome to {GameName}! Press F2 to begin", _font, FontSize * 2, Scale);
+        _score = new(_rendererPtr, "Score: 0", _font, FontSize * 1.5f, Scale);
+        
         _player = new Player(_rendererPtr, Scale);
         for (int i = 0; i < 5; i++) {
             Enemy enemy = new(_rendererPtr, Scale);
@@ -184,6 +198,23 @@ internal static class Program {
             _enemies ??= [];
             _enemies.Add(enemy);
         }
+
+        debugText = CreateDebugText(5,
+    $"Ticks: {Sdl.GetTicks()}",
+    $"Player Dead? {_player!.IsDead}",
+    $"Is On Ground? {_player.IsGrounded}",
+    $"Is Jumping? {_player.IsJumping}",
+    $"Is Maxed Jump? {_player.IsMaxJump}",
+    $"Is Jump Locked? {_player.IsLockedJump}",
+    $"Position Y: {_player.Position.Y}",
+    $"Velocity: {_player.Velocity}",
+    $"Alpha: {_biome!.ColorFadeEffect.GetAlpha()}");
+        List<string> enemies = [];
+        for (int i = 0; i < _enemies!.Count; i++) {
+            Enemy enemy = _enemies![i];
+            enemies.Add($"Enemy {i + 1} Passed? {enemy.IsPassed}");
+        }
+        enemyText = CreateDebugText(Width / 1.5f, [.. enemies]);
 
     }
 
@@ -215,6 +246,7 @@ internal static class Program {
             Cleanup();
             return;
         }
+
         _font = Ttf.OpenFont("C:\\Windows\\Fonts\\consola.ttf", FontSize);
         if (_font.Handle == nint.Zero) {
             Sdl.LogError(LogCategory.Error, $"Failed to open font: consola.ttf. {Sdl.GetError()}");
@@ -222,12 +254,13 @@ internal static class Program {
             return;
         }
 
-        LoadAssets();
         UpdateWindowDimensions();
+        LoadAssets();
+        
         Sdl.LogInfo(LogCategory.Application, "Starting game loop...");
-        _running = true;
+        _isRunning = true;
         Span<bool> keyboardState;
-        while (_running) {
+        while (_isRunning) {
             keyboardState = Sdl.GetKeyboardState(out _);
             _fps.Start();
 
@@ -258,54 +291,37 @@ internal static class Program {
     }
 
 
-    private static void DebugText(float x, params string[] texts) {
-        int y = 2;
+    private static List<StaticTextEffect> debugText = [];
+    private static List<StaticTextEffect> enemyText = [];
+
+    private static void UpdateDebugText(List<StaticTextEffect> lst, params string[] texts) {
+        for (int i = 0; i < texts.Length; i++) {
+            lst[i].Text = texts[i];
+        }
+    }
+
+    private static List<StaticTextEffect> CreateDebugText(float x, params string[] texts) {
+        List<StaticTextEffect> lst = [];
+        float y = 2;
         foreach (string text in texts) {
-            RenderText(x, y, text);
-            y += _font.Height;
+            StaticTextEffect tEffect = new(_rendererPtr, text, _font, FontSize, Scale);
+            tEffect.UpdatePosition(x, y);
+            lst.Add(tEffect);
+            y += FontSize;
         }
+        return lst;
     }
-    private static void RenderText(float x, float y, string text, bool shadow = true ) {
-        Color previousColor = Sdl.GetRenderDrawColor(_rendererPtr);
-        Color currentColor = new() { R = 255, G = 255, B = 255, A = 255 };
-        SetColor(currentColor);
-        if (text is null || string.IsNullOrEmpty(text)) {
-            return;
-        }
-
-        if (_rendererPtr == nint.Zero) {
-            Sdl.LogError(LogCategory.Error, "Renderer is not initialized");
-            return;
-        }
-        TextEngine textEngine = Ttf.CreateRendererTextEngine(_rendererPtr);
-        if (textEngine.Handle == nint.Zero) {
-            Sdl.LogError(LogCategory.Error, $"Error creating text engine: {Sdl.GetError()}");
-            return;
-        }
-
-        Text txt = Ttf.CreateText(textEngine, _font, text);
-
-        if(shadow) {
-            Ttf.SetTextColor(txt, _currentShadowColor);
-            Ttf.DrawRendererText(txt, x + 2, y + 2);
-        }
-
-        Ttf.SetTextColor(txt, currentColor);
-        Ttf.DrawRendererText(txt, x, y);
-
-        Ttf.DestroyText(txt);
-        Ttf.DestroyRendererTextEngine(textEngine);
-        SetColor(previousColor);
-    }
+    
 
     private static void Reset() {
         foreach(Enemy e in _enemies!) {
             e.ResetEntity();
         }
-        _deathTriggered = false;
-        _resetTriggered = true;
+        _biome!.DeathTriggered = false;
+        _biome.ResetTriggered = true;
+        _biome.ResetEntity();
         _player!.ResetEntity();
-        _colorFade.Trigger();
+        _biome.ColorFadeEffect.Trigger();
     }
 
     internal static void SetColor(byte r, byte g, byte b, byte a = 255) => Sdl.SetRenderDrawColor(_rendererPtr, r, g, b, a);
@@ -316,19 +332,32 @@ internal static class Program {
             case EventType.First:
                 break;
             case EventType.Quit:
-                _running = false;
+                _isRunning = false;
                 break;
             case EventType.KeyDown:
                 switch (sdlEvent.Key.ScanCode) {
                     case Scancode.Escape:
-                        _running = false;
+                        if(_isLicenseShown) {
+                            _isPaused = false;
+                            _licenseText.IsGrowing = false;
+                            _licenseText.Animated = true;
+                            break;
+                        }
+                        _isRunning = false;
                         break;
                     case Scancode.F2:
-                        if (_firstRun) {
-                            _firstRun = false;
+                        if (_isFirstRun) {
+                            _isFirstRun = false;
                         }
-                        _framesToTriggerFade = 0;
+                        _biome!.FramesToTriggerFade = 0;
                         Reset();
+                        break;
+
+                    case Scancode.F1:
+                        _isPaused = true;
+                        _isLicenseShown = true;
+                        _licenseText.Animated = true;
+                        _licenseText.UseUpdate = false;
                         break;
                 }
                 break;
@@ -369,42 +398,74 @@ internal static class Program {
                 break;
         }
 
-        if (_deathTriggered && !_colorFade.IsTriggered) {
-            _currentBackgroundColor = _colorFade.Maroon;
-            _currentShadowColor = _colorFade.Transparent with { A = _colorFade.GetAlpha() };
-        } else if (_resetTriggered && _colorFade.IsTriggered) {
-            (_currentBackgroundColor, _currentShadowColor) = _colorFade.ResetDeath();
-            if (_framesToTriggerFade++ > FadingSteps) {
-                _framesToTriggerFade = 0;
-                _resetTriggered = false;
+        if (_isLicenseShown) {
+            if (!_licenseText.Animated && !_isPaused) {
+                _isLicenseShown = false;
             }
-        }
-        else {
-            (_currentBackgroundColor, _currentShadowColor) = !_player!.IsDead ? _colorFade.GetNextColor() : _colorFade.FadeToDeath();
+            if (_licenseText.IsGrowing) {
+                _licenseText.Grow();
+            } else if (!_licenseText.IsGrowing) {
+                _licenseText.Shrink();
+            }
+
+            _licenseText.Update(sdlEvent);
+
+            _licenseText.UpdatePosition(
+                 (Width / 2) - (_licenseText.Position.W / 2),
+                (Height / 2) - (_licenseText.Position.H / 2)
+            );
+
+            return;
         }
 
-        if(!_player!.IsDead && _framesToTriggerFade++ > FadingSteps * 20) {
-            _framesToTriggerFade = 0;
-            _colorFade.Trigger();
-        }
+#if DEBUG
+        debugText.ForEach(t => t.Update(sdlEvent));
+        enemyText.ForEach(t => t.Update(sdlEvent));
+#endif
+        _biome?.Update(sdlEvent);
+
+        _score.Text = $"Score: {_player!.Score}";
+        _score.Update(sdlEvent);
+        _score.UpdatePosition(Width - (_score.Position.W + 4), _score.Position.Y);
+
+        _memoryUsage.Text = $"Memory: {Process.GetCurrentProcess().PrivateMemorySize64 / 1024 / 1024}MB";
+        _memoryUsage.Update(sdlEvent);
+        _memoryUsage.UpdatePosition(Width - (_memoryUsage.Position.W + 4), _score.Position.Y + _score.Position.H + 12);
+
+        _gameTitle.Text = GameName;
+        _gameTitle.Update(sdlEvent);
+        _gameTitle.UpdatePosition((Width / 2) - (_gameTitle.Position.W / 2), _gameTitle.Position.Y);
 
         if (_isTutorial) {
-
-            if (_tutorialZoom < 1.5f) {
-                _tutorialZoom = 1.5f;
-                _tutorialZoomSpeed = ZoomSpeed;
+            Enemy? enemy = _enemies!.FirstOrDefault();
+            if (enemy is not null && _isFirstRun) {
+                if (enemy.Position.X > 1000) {
+                    enemy.UpdatePosition(1000, enemy.Position.Y);
+                }
             }
-
-            if( _tutorialZoom > 2.0f) {
-                _tutorialZoomSpeed = -ZoomSpeed;
-            }
+            if(!_tutorialText.Animated)
+                _tutorialText.Animated = true;
+            _tutorialText.Update(sdlEvent);
+            _tutorialText.UpdatePosition(
+                (Width / 2) - (_tutorialText.Position.W / 2),
+                (Height / 2) - (_tutorialText.Position.H / 2)
+            );
+            
         }
 
         if(_player!.IsDead) {
-            if (!_colorFade.IsTriggered && !_deathTriggered) {
-                _deathTriggered = true;
-                _framesToTriggerFade = 0;
-                _colorFade.Trigger();
+            _notificationText!.Text = _isFirstRun ? $"Welcome to {GameName}! Press F2 to begin"
+                : "You are Dead. Press F2 to restart";
+            _notificationText.Update(sdlEvent);
+            _notificationText.UpdatePosition(
+                (Width / 2) - (_notificationText.Position.W / 2),
+                (Height / 2) - (_notificationText.Text.Length / 2)
+            );
+
+            if (!_biome!.ColorFadeEffect.IsTriggered && !_biome.DeathTriggered) {
+                _biome.DeathTriggered = true;
+                _biome.FramesToTriggerFade = 0;
+                _biome.ColorFadeEffect.Trigger();
             }
 
             if (!_player.IsGrounded) {
@@ -416,7 +477,7 @@ internal static class Program {
             return;
         }
 
-        _biome?.Update(sdlEvent);
+
         _player?.Update(sdlEvent);
         if (_enemies is not null) {
             foreach (Enemy e in _enemies) {

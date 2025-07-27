@@ -30,13 +30,10 @@
     <None Update="SDL3_ttf.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Update="tileset.png">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="xcopy /E /C /Y &quot;$(ProjectDir)Tilesets&quot; &quot;$(OutDir)Tilesets&quot;" />
+    <Exec Command="xcopy /E /C /Y &quot;$(ProjectDir)Assets&quot; &quot;$(OutDir)Assets&quot;" />
   </Target>
 
 </Project>
