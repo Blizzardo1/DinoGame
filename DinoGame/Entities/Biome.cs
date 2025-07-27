@@ -36,10 +36,9 @@ internal class Biome : Entity {
 
     public Biome(nint renderer, float scale) : base(renderer,
             Path.Combine("Assets", "Tilesets", "Tilesets", "PS_Tileset_07.png"), 16, 16, 0, 0, 0, 0, scale) {
-        _colorFade = new ColorFadeEffect(FadingSteps, ColorFadeEffect.RussianViolet, ColorFadeEffect.CornflowerBlue);
+        _colorFade = new ColorFadeEffect(FadingSteps, ColorFadeEffect.RussianViolet);
         _currentBackgroundColor = _colorFade.GetCurrentColor().background;
         _currentShadowColor = _colorFade.GetCurrentColor().shadow;
-
     }
 
     public int FramesToTriggerFade { get => _framesToTriggerFade; set => _framesToTriggerFade = value; }
@@ -69,49 +68,42 @@ internal class Biome : Entity {
     }
 
     public override void ResetEntity() {
+        _deathTriggered = false;
+        _resetTriggered = true;
+        _colorFade.TargetColor = _colorFade.IsDay ? ColorFadeEffect.RussianViolet : ColorFadeEffect.CornflowerBlue;
         UpdatePosition(0, Position.Y);
+        _colorFade.Trigger();
     }
 
     public override void Update(Event sdlEvent) {
+        var player = Program.Player!;
+        var width = Program.Width;
+        var height = Program.Height;
 
         if (_deathTriggered && !_colorFade.IsTriggered) {
-            _currentBackgroundColor = ColorFadeEffect.Maroon;
-            _currentShadowColor = ColorFadeEffect.Transparent with { A = _colorFade.GetAlpha() };
+            _colorFade.Trigger();
         } else if (_resetTriggered && _colorFade.IsTriggered) {
-            
-            _colorFade.TargetColor =
-                _colorFade.IsDay
-                ? ColorFadeEffect.RussianViolet
-                : ColorFadeEffect.CornflowerBlue;
-
             (_currentBackgroundColor, _currentShadowColor) = _colorFade.GetNextColor();
-            if (_framesToTriggerFade++ > FadingSteps) {
+            if (++_framesToTriggerFade > FadingSteps) {
                 _framesToTriggerFade = 0;
                 _resetTriggered = false;
             }
-
         } else {
             (_currentBackgroundColor, _currentShadowColor) =
-                !Program.Player!.IsDead
-                ? _colorFade.GetNextColor()
-                : _colorFade.FadeToDeath();
+                !player.IsDead ? _colorFade.GetNextColor() : _colorFade.FadeToDeath();
         }
 
-        if (!Program.Player!.IsDead && _framesToTriggerFade++ > FadingSteps * 20) {
+        if (!player.IsDead && ++_framesToTriggerFade > FadingSteps * 20) {
             _framesToTriggerFade = 0;
             _colorFade.Trigger();
         }
 
-        if (Program.Player!.IsDead) {
-            return;
-        }
+        if (player.IsDead) return;
 
-        // Update the position to cover the bottom of the screen
-        UpdatePosition(Position.X - XSpeed, Program.Height - TileSet!.TileHeight * Scale);
-        UpdateSize(Program.Width, TileSet!.TileHeight * Scale);
-        
+        UpdatePosition(Position.X - XSpeed, height - TileSet!.TileHeight * Scale);
+        UpdateSize(width, TileSet!.TileHeight * Scale);
 
-        if(Position.X < -FloorWidth*3) {
+        if (Position.X < -FloorWidth * 3) {
             UpdatePosition(0, Position.Y);
         }
     }

@@ -19,92 +19,113 @@
 
 using SharpSDL3.Structs;
 
-namespace DinoGame.Effects; 
-internal class ColorFadeEffect {
+namespace DinoGame.Effects;
 
+internal class ColorFadeEffect {
     private static readonly Color _russianViolet = new() { R = 34, G = 1, B = 53, A = 255 };
     private static readonly Color _cornflowerBlue = new() { R = 111, G = 144, B = 244, A = 255 };
     private static readonly Color _maroon = new() { R = 128, G = 16, B = 8, A = 255 };
     private static readonly Color _black = new() { R = 0, G = 0, B = 0, A = 255 };
     private static readonly Color _transparent = new() { R = 0, G = 0, B = 0, A = 0 };
 
+    private readonly Color[] _colorCycle = [_russianViolet, _cornflowerBlue, _maroon];
+    private int _currentColorIndex = 0;
     private Color _currentColor;
     private Color _targetColor;
     private Color _currentShadow;
-    
+    private readonly float _fadeSteps;
+    private float _currentFadeSteps;
+    private float _currentStep = 0;
+    private bool _isFading = false;
+
     public static Color RussianViolet => _russianViolet;
-    
     public static Color CornflowerBlue => _cornflowerBlue;
-
     public static Color Maroon => _maroon;
-
     public static Color Black => _black;
-
     public static Color Transparent => _transparent;
-    
+
     public Color CurrentColor => _currentColor;
     public Color TargetColor {
         get => _targetColor;
         set => _targetColor = value;
     }
 
-
-    private int _fadeSteps;
-    private int _currentStep = 0;
-    private bool _fadingNight = false;
-
     public bool IsTriggered { get; private set; }
+    public bool IsDay => _currentColorIndex == 1; // CornflowerBlue is "day"
 
-    public bool IsDay => _fadingNight;
-
-    public ColorFadeEffect(int fadeSteps, Color currentColor, Color targetColor) {
+    public ColorFadeEffect(int fadeSteps, Color currentColor) {
         if (fadeSteps < 1) throw new ArgumentException("Fade Steps must be a positive integer");
         _fadeSteps = fadeSteps;
+        _currentFadeSteps = fadeSteps;
         _currentColor = currentColor;
-        _targetColor = targetColor;
+        _targetColor = _colorCycle[0]; // Start with Russian Violet
+        _currentShadow = new() { R = (byte)(currentColor.R * 0.5f), G = (byte)(currentColor.G * 0.5f), B = (byte)(currentColor.B * 0.5f), A = 255 };
     }
 
-    public byte GetAlpha() {
-        // Calculate interpolation factor based on fade progress
-        float t = (float)(_fadeSteps - _currentStep) / _fadeSteps;
-        // Smooth alpha transition between 127 (half opacity) and 255 (full opacity)
-        // Adjust range (127, 255) to (0, 255) or other if desired
-        return (byte)Math.Round(255 * (_fadingNight ? t : 1f - t));
+    private float GetFadeProgress() => Math.Clamp(_currentStep / _currentFadeSteps, 0f, 1f);
+
+    private byte GetAlpha(Color from, Color to) {
+        // If both colors are opaque, keep alpha at 255
+        if (from.A == 255 && to.A == 255) return 255;
+        float t = GetFadeProgress();
+        return (byte)Math.Round(from.A * (1f - t) + to.A * t);
     }
 
     public void Trigger() {
-        IsTriggered = !IsTriggered;
+        if (!_isFading) {
+            IsTriggered = true;
+            _isFading = true;
+            _currentStep = 0;
+            _currentColorIndex = (_currentColorIndex + 1) % _colorCycle.Length - 1;
+            _targetColor = _colorCycle[_currentColorIndex];
+        }
     }
 
-    private (Color background, Color shadow) Fade(Color c1, Color c2, bool condition) {
-        if (!IsTriggered) {
-            return GetCurrentColor();
+    private (Color background, Color shadow) Fade(Color from, Color to) {
+        if (!_isFading) {
+            return (_currentColor, _currentShadow);
         }
-        float t = (float)_currentStep / _fadeSteps;
-        if (condition) t = 1f - t;
 
-        byte r = (byte)(c1.R * t + c2.R * (1f - t));
-        byte g = (byte)(c1.G * t + c2.G * (1f - t));
-        byte b = (byte)(c1.B * t + c2.B * (1f - t));
+        float t = GetFadeProgress();
+
+        byte r = (byte)Math.Round(from.R * (1f - t) + to.R * t);
+        byte g = (byte)Math.Round(from.G * (1f - t) + to.G * t);
+        byte b = (byte)Math.Round(from.B * (1f - t) + to.B * t);
+        byte a = GetAlpha(from, to);
+
+        byte shadowR = (byte)Math.Round(r * 0.5f);
+        byte shadowG = (byte)Math.Round(g * 0.5f);
+        byte shadowB = (byte)Math.Round(b * 0.5f);
+
+        _currentColor = new() { R = r, G = g, B = b, A = a };
+        _currentShadow = new() { R = shadowR, G = shadowG, B = shadowB, A = a };
 
         _currentStep++;
-        if (_currentStep > _fadeSteps) {
+        if (_currentStep >= _currentFadeSteps) {
             _currentStep = 0;
-            _fadingNight = condition;
+            _currentFadeSteps = _fadeSteps;
+            _isFading = false;
             IsTriggered = false;
+            _currentColor = new() { R = to.R, G = to.G, B = to.B, A = to.A };
+            _currentShadow = new() { R = (byte)(to.R * 0.5f), G = (byte)(to.G * 0.5f), B = (byte)(to.B * 0.5f), A = to.A };
         }
-        _currentColor = new() { R = r, G = g, B = b, A = 255 };
-        _currentShadow = new() { R = 0, G = 0, B = 0, A = GetAlpha() };
 
         return (_currentColor, _currentShadow);
     }
 
     public (Color background, Color shadow) FadeToDeath() {
-        return Fade(_currentColor, _maroon, true);
+        if (!IsTriggered || !_isFading) {
+            _targetColor = _maroon;
+            _isFading = true;
+            IsTriggered = true;
+            _currentFadeSteps = 6;
+            _currentStep = 0;
+        }
+        return Fade(_currentColor, _targetColor);
     }
 
     public (Color background, Color shadow) GetNextColor() {
-        return Fade(_currentColor, _targetColor, !_fadingNight);
+        return Fade(_currentColor, _targetColor);
     }
 
     public (Color background, Color shadow) GetCurrentColor() {
