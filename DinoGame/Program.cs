@@ -53,6 +53,7 @@ internal static class Program {
     private static StaticTextEffect _gameTitle;
     private static StaticTextEffect _score;
     private static StaticTextEffect _memoryUsage;
+    private static ScrollTextEffect _credits;
 
     internal static Player Player => _player;
     internal static Biome Biome => _biome;
@@ -135,6 +136,10 @@ internal static class Program {
         if (_player.IsDead)
             _notificationText.Draw();
 
+        if(_credits.Animate && !_credits.OutOfBounds) {
+            _credits.Draw();
+        }
+
         _gameTitle.Draw();
 
         if (_isLicenseShown)
@@ -152,8 +157,15 @@ internal static class Program {
             @"DinoGame version 1, Copyright (C) 2025 Adonis Deliannis (Blizzardo1)
 DinoGame comes with ABSOLUTELY NO WARRANTY; This is free software,
 and you are welcome to redistribute it under certain conditions.", _font, 0.02f, 1.2f, Scale);
+        _licenseText.ShowBox = true;
+        _licenseText.Use3DBorder = true;
         _notificationText = new(_rendererPtr, $"Welcome to {GameName}! Press F2 to begin", _font, FontSize * 2, Scale);
         _score = new(_rendererPtr, "Score: 0", _font, FontSize * 1.5f, Scale);
+
+        // Will need to center justify the text and make a
+        // string builder of some sort that shoves the
+        // credits into this little byVal string
+        _credits = new(_rendererPtr, 1f, "Programmer\nBlizzardo1", _font, FontSize * 2, Scale);
 
         _player = new Player(_rendererPtr, Scale);
         _enemies = new List<Enemy>(5);
@@ -271,7 +283,7 @@ and you are welcome to redistribute it under certain conditions.", _font, 0.02f,
     internal static void SetColor(byte r, byte g, byte b, byte a = 255) =>
         Sdl.SetRenderDrawColor(_rendererPtr, r, g, b, a);
     internal static void SetColor(Color color) =>
-        Sdl.SetRenderDrawColor(_rendererPtr, color);
+        SetColor(color.R, color.G, color.B, color.A);
 
     private static void Update(Event sdlEvent) {
         switch (sdlEvent.Type) {
@@ -301,6 +313,14 @@ and you are welcome to redistribute it under certain conditions.", _font, 0.02f,
                         _licenseText.Animated = true;
                         _licenseText.UseUpdate = false;
                         break;
+                    case Scancode.F3:
+                        if(!_credits.Animate)
+                            // Accurate; however, OutOfBounds triggers before screen can 
+                            _credits.CenterObject(0, (Height / 2) - 1);
+                        _credits.TextDirection = Direction.Up;
+                        _credits.Animate = true;
+                        break;
+
                 }
                 break;
             case EventType.WindowResized:
@@ -341,6 +361,10 @@ and you are welcome to redistribute it under certain conditions.", _font, 0.02f,
         _gameTitle.Text = GameName;
         _gameTitle.Update(sdlEvent);
         _gameTitle.UpdatePosition((Width / 2) - (_gameTitle.Position.W / 2), _gameTitle.Position.Y);
+
+        if (_credits.Animate && !_credits.OutOfBounds) {
+            _credits.Update(sdlEvent);
+        }
 
         if (_isTutorial) {
             var enemy = _enemies.Count > 0 ? _enemies[0] : null;

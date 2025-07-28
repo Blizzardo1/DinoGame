@@ -22,13 +22,7 @@ using SharpSDL3.Structs;
 namespace DinoGame.Effects;
 
 internal class ColorFadeEffect {
-    private static readonly Color _russianViolet = new() { R = 34, G = 1, B = 53, A = 255 };
-    private static readonly Color _cornflowerBlue = new() { R = 111, G = 144, B = 244, A = 255 };
-    private static readonly Color _maroon = new() { R = 128, G = 16, B = 8, A = 255 };
-    private static readonly Color _black = new() { R = 0, G = 0, B = 0, A = 255 };
-    private static readonly Color _transparent = new() { R = 0, G = 0, B = 0, A = 0 };
-
-    private readonly Color[] _colorCycle = [_russianViolet, _cornflowerBlue, _maroon];
+    private readonly Color[] _colorCycle = [Colors.DarkSlateBlue, Colors.CornflowerBlue, Colors.Maroon];
     private int _currentColorIndex = 0;
     private Color _currentColor;
     private Color _targetColor;
@@ -37,12 +31,6 @@ internal class ColorFadeEffect {
     private float _currentFadeSteps;
     private float _currentStep = 0;
     private bool _isFading = false;
-
-    public static Color RussianViolet => _russianViolet;
-    public static Color CornflowerBlue => _cornflowerBlue;
-    public static Color Maroon => _maroon;
-    public static Color Black => _black;
-    public static Color Transparent => _transparent;
 
     public Color CurrentColor => _currentColor;
     public Color TargetColor {
@@ -53,13 +41,13 @@ internal class ColorFadeEffect {
     public bool IsTriggered { get; private set; }
     public bool IsDay => _currentColorIndex == 1; // CornflowerBlue is "day"
 
-    public ColorFadeEffect(int fadeSteps, Color currentColor) {
+    public ColorFadeEffect(int fadeSteps, int currentColorIndex = 0) {
         if (fadeSteps < 1) throw new ArgumentException("Fade Steps must be a positive integer");
         _fadeSteps = fadeSteps;
         _currentFadeSteps = fadeSteps;
-        _currentColor = currentColor;
+        _currentColor = _colorCycle[currentColorIndex % (_colorCycle.Length - 1)];
         _targetColor = _colorCycle[0]; // Start with Russian Violet
-        _currentShadow = new() { R = (byte)(currentColor.R * 0.5f), G = (byte)(currentColor.G * 0.5f), B = (byte)(currentColor.B * 0.5f), A = 255 };
+        _currentShadow = new() { R = (byte)(_currentColor.R * 0.5f), G = (byte)(_currentColor.G * 0.5f), B = (byte)(_currentColor.B * 0.5f), A = 255 };
     }
 
     private float GetFadeProgress() => Math.Clamp(_currentStep / _currentFadeSteps, 0f, 1f);
@@ -115,7 +103,7 @@ internal class ColorFadeEffect {
 
     public (Color background, Color shadow) FadeToDeath() {
         if (!IsTriggered || !_isFading) {
-            _targetColor = _maroon;
+            _targetColor = Colors.Maroon;
             _isFading = true;
             IsTriggered = true;
             _currentFadeSteps = 6;
@@ -124,11 +112,10 @@ internal class ColorFadeEffect {
         return Fade(_currentColor, _targetColor);
     }
 
-    public (Color background, Color shadow) GetNextColor() {
-        return Fade(_currentColor, _targetColor);
-    }
+    public (Color background, Color shadow) GetNextColor() => Fade(_currentColor, _targetColor);
 
-    public (Color background, Color shadow) GetCurrentColor() {
-        return (_currentColor, _currentShadow);
-    }
+    public (Color background, Color shadow) GetColorFromIndex(int index) =>
+        (_colorCycle[index % (_colorCycle.Length - 1)], _currentShadow);
+
+    public (Color background, Color shadow) GetCurrentColor() => (_currentColor, _currentShadow);
 }

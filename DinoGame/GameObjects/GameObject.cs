@@ -49,6 +49,11 @@ public abstract class GameObject(nint renderer) {
         _position.Y = y;
     }
 
+    public virtual void CenterObject(float xOffset, float yOffset) {
+        _position.X = (Program.Width / 2) - xOffset;
+        _position.Y = (Program.Height / 2) - yOffset;
+    }
+
     public void UpdateSize(float w, float h) {
         _position.W = w;
         _position.H = h;

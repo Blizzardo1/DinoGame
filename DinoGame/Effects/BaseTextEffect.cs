@@ -32,7 +32,12 @@ internal abstract class BaseTextEffect : BaseEffect, IDisposable {
     private TextEngine _engine;
     private Text _text;
     private string _textStr;
-    private bool disposedValue;
+    private bool _disposedValue;
+    
+    public bool ShowBox { get; set; }
+
+    public bool Use3DBorder { get; set; }
+    public bool Use3DBorderUpsideDown { get; set; }
 
     ~BaseTextEffect() {
         Dispose(false);
@@ -65,6 +70,49 @@ internal abstract class BaseTextEffect : BaseEffect, IDisposable {
 
     protected void RenderText(float x, float y, bool shadow = true) {
         Color previousColor = Sdl.GetRenderDrawColor(rendererPtr);
+        if (ShowBox) {
+            FRect fRect = Position;
+            Color top = new() { R = 0, G = 0, B = 0, A = 255 };
+            Color bottom = new() { R = 0, G = 0, B = 0, A = 255 };
+
+            Program.SetColor(0, 0, 0, 128);
+            Sdl.RenderFillRect(rendererPtr, ref fRect);
+            if (Use3DBorder) {
+                top = new() { R = 255, G = 255, B = 255, A = 255 };
+                bottom = new() { R = 128, G = 128, B = 128, A = 255 };
+            } else if (Use3DBorderUpsideDown) {
+                top = new() { R = 128, G = 128, B = 128, A = 255 };
+                bottom = new() { R = 255, G = 255, B = 255, A = 255 };
+            }
+
+            Program.SetColor(top);
+            Sdl.RenderLine(rendererPtr,
+                Position.X,
+                Position.Y,
+                Position.X + Position.W,
+                Position.Y);
+            Sdl.RenderLine(rendererPtr,
+                Position.X,
+                Position.Y,
+                Position.X,
+                Position.Y + Position.H
+                );
+
+            Program.SetColor(bottom);
+            Sdl.RenderLine(rendererPtr,
+                Position.X + Position.W,
+                Position.Y,
+                Position.X + Position.W,
+                Position.Y + Position.H
+                );
+            Sdl.RenderLine(rendererPtr,
+                Position.X,
+                Position.Y + Position.H,
+                Position.X + Position.W,
+                Position.Y + Position.H
+                );
+        }
+
         Color currentColor = new() { R = 255, G = 255, B = 255, A = 255 };
         Program.SetColor(currentColor);
         if (Text is null || Text.IsEmpty()) {
@@ -100,8 +148,13 @@ internal abstract class BaseTextEffect : BaseEffect, IDisposable {
         _text = Ttf.CreateText(_engine, font, _textStr);
     }
 
+    public override void CenterObject(float xOffset, float yOffset) {
+        _position.X = (Program.Width / 2) - (measuredTextSize.Width / 2) + xOffset;
+        _position.Y = (Program.Height / 2) - ( measuredTextSize.Height / 2) + yOffset;
+    }
+
     protected virtual void Dispose(bool disposing) {
-        if (!disposedValue) {
+        if (!_disposedValue) {
             if (disposing) {
                 // TODO: dispose managed state (managed objects)
             }
@@ -109,7 +162,7 @@ internal abstract class BaseTextEffect : BaseEffect, IDisposable {
             Ttf.DestroyText(_text);
             Ttf.DestroyRendererTextEngine(_engine);
 
-            disposedValue = true;
+            _disposedValue = true;
         }
     }
 

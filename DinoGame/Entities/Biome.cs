@@ -36,7 +36,7 @@ internal class Biome : Entity {
 
     public Biome(nint renderer, float scale) : base(renderer,
             Path.Combine("Assets", "Tilesets", "Tilesets", "PS_Tileset_07.png"), 16, 16, 0, 0, 0, 0, scale) {
-        _colorFade = new ColorFadeEffect(FadingSteps, ColorFadeEffect.RussianViolet);
+        _colorFade = new ColorFadeEffect(FadingSteps);
         _currentBackgroundColor = _colorFade.GetCurrentColor().background;
         _currentShadowColor = _colorFade.GetCurrentColor().shadow;
     }
@@ -70,7 +70,7 @@ internal class Biome : Entity {
     public override void ResetEntity() {
         _deathTriggered = false;
         _resetTriggered = true;
-        _colorFade.TargetColor = _colorFade.IsDay ? ColorFadeEffect.RussianViolet : ColorFadeEffect.CornflowerBlue;
+        _colorFade.TargetColor = _colorFade.GetColorFromIndex(_colorFade.IsDay ? 0: 1).background;
         UpdatePosition(0, Position.Y);
         _colorFade.Trigger();
     }
