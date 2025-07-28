@@ -47,6 +47,8 @@ internal static class Program {
     private static bool _isLicenseShown = false;
     private static bool _isPaused = false;
 
+    private static bool _isLoading = true;
+
     private static ZoomTextEffect _licenseText;
     private static ZoomTextEffect _tutorialText;
     private static StaticTextEffect _notificationText;
@@ -54,6 +56,7 @@ internal static class Program {
     private static StaticTextEffect _score;
     private static StaticTextEffect _memoryUsage;
     private static ScrollTextEffect _credits;
+    private static StaticTextEffect _loadingText;
 
     internal static Player Player => _player;
     internal static Biome Biome => _biome;
@@ -150,10 +153,15 @@ internal static class Program {
         if (_isLicenseShown)
             _licenseText.Draw();
 
+        if(_isLoading) {
+            _loadingText.Draw();
+        }
+
         Sdl.RenderPresent(_rendererPtr);
     }
 
     private static void LoadAssetsAndUpdateWindowDimensions() {
+        _loadingText = new(_rendererPtr, "Loading, please wait...", _font, FontSize * 2, Scale);
         _biome = new(_rendererPtr, Scale);
         _memoryUsage = new(_rendererPtr, $"Memory Usage: 0 MB", _font, FontSize, Scale);
         _gameTitle = new(_rendererPtr, GameName, _font, FontSize * 6f, Scale);
@@ -161,9 +169,10 @@ internal static class Program {
         _licenseText = new(_rendererPtr,
             @"DinoGame version 1, Copyright (C) 2025 Adonis Deliannis (Blizzardo1)
 DinoGame comes with ABSOLUTELY NO WARRANTY; This is free software,
-and you are welcome to redistribute it under certain conditions.", _font, 0.02f, 1.2f, Scale);
-        _licenseText.ShowBox = true;
-        _licenseText.Use3DBorder = true;
+and you are welcome to redistribute it under certain conditions.", _font, 0.02f, 1.2f, Scale) {
+            ShowBox = true,
+            Use3DBorder = true
+        };
         _notificationText = new(_rendererPtr, $"Welcome to {GameName}! Press F2 to begin", _font, FontSize * 2, Scale);
         _score = new(_rendererPtr, "Score: 0", _font, FontSize * 1.5f, Scale);
 
@@ -367,6 +376,11 @@ and you are welcome to redistribute it under certain conditions.", _font, 0.02f,
         debugText.ForEach(t => t.Update(sdlEvent));
         enemyText.ForEach(t => t.Update(sdlEvent));
 #endif
+        if (_isLoading) {
+            _loadingText.Update(sdlEvent);
+            _loadingText.CenterObject(0, 0);
+        }
+
         _biome.Update(sdlEvent);
 
         _score.Text = $"Score: {_player!.Score}";
@@ -397,6 +411,11 @@ and you are welcome to redistribute it under certain conditions.", _font, 0.02f,
         }
 
         if (_player.IsDead) {
+            
+            if (_isLoading) {
+                _isLoading = false;
+            }
+
             _notificationText.Text = _isFirstRun
                 ? $"Welcome to {GameName}! Press F2 to begin"
                 : "You are Dead. Press F2 to restart";
