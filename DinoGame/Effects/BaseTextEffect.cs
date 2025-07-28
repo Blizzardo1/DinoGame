@@ -68,7 +68,7 @@ internal abstract class BaseTextEffect : BaseEffect, IDisposable {
         }
     }
 
-    protected void RenderText(float x, float y, bool shadow = true) {
+    protected void RenderText(float x, float y, string text, bool shadow = true) {
         Color previousColor = Sdl.GetRenderDrawColor(rendererPtr);
         if (ShowBox) {
             FRect fRect = Position;
@@ -115,7 +115,7 @@ internal abstract class BaseTextEffect : BaseEffect, IDisposable {
 
         Color currentColor = new() { R = 255, G = 255, B = 255, A = 255 };
         Program.SetColor(currentColor);
-        if (Text is null || Text.IsEmpty()) {
+        if (text is null || text.IsEmpty()) {
             return;
         }
 
@@ -123,7 +123,10 @@ internal abstract class BaseTextEffect : BaseEffect, IDisposable {
             Sdl.LogError(LogCategory.Error, "Renderer is not initialized");
             return;
         }
-        
+
+        // God I hope this works
+        Ttf.SetTextString(_text, text, (ulong)text.Length);
+
         if (shadow) {
             Ttf.SetTextColor(_text, Program.Biome!.CurrentShadowColor);
             Ttf.DrawRendererText(_text, x + 2, y + 2);
@@ -133,6 +136,10 @@ internal abstract class BaseTextEffect : BaseEffect, IDisposable {
         Ttf.DrawRendererText(_text, x, y);
 
         Program.SetColor(previousColor);
+    }
+
+    protected void RenderText(float x, float y, bool shadow = true) {
+        RenderText(x, y, _textStr, shadow);
     }
 
     public override void Update(Event sdlEvent) {
@@ -149,8 +156,16 @@ internal abstract class BaseTextEffect : BaseEffect, IDisposable {
     }
 
     public override void CenterObject(float xOffset, float yOffset) {
-        _position.X = (Program.Width / 2) - (measuredTextSize.Width / 2) + xOffset;
-        _position.Y = (Program.Height / 2) - ( measuredTextSize.Height / 2) + yOffset;
+        CenterObjectX(xOffset);
+        CenterObjectY(yOffset);
+    }
+
+    public override void CenterObjectX(float xOffset = 0) {
+        _position.X = (Program.Width / 2) - (Position.W / 2) + xOffset;
+    }
+
+    public override void CenterObjectY(float yOffset = 0) {
+        _position.Y = (Program.Height / 2) - (Position.Y / 2) + yOffset;
     }
 
     protected virtual void Dispose(bool disposing) {

@@ -50,8 +50,16 @@ public abstract class GameObject(nint renderer) {
     }
 
     public virtual void CenterObject(float xOffset, float yOffset) {
-        _position.X = (Program.Width / 2) - xOffset;
-        _position.Y = (Program.Height / 2) - yOffset;
+        CenterObjectX(xOffset);
+        CenterObjectY(yOffset);
+    }
+
+    public virtual void CenterObjectX(float xOffset = 0) {
+        _position.X = (Program.Width / 2) + xOffset;
+    }
+
+    public virtual void CenterObjectY(float yOffset = 0) {
+        _position.Y = (Program.Height / 2) + yOffset;
     }
 
     public void UpdateSize(float w, float h) {

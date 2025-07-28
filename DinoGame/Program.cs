@@ -108,6 +108,12 @@ internal static class Program {
         _player.Draw();
         foreach (var e in _enemies!)
             e.Draw();
+
+        if (_credits.Animate) {
+            _credits.Draw();
+            Sdl.RenderPresent(_rendererPtr);
+            return;
+        }
 #if DEBUG
         UpdateDebugText(debugText,
             $"Ticks: {Sdl.GetTicks()}",
@@ -119,7 +125,10 @@ internal static class Program {
             $"Position Y: {_player.Position.Y}",
             $"Velocity: {_player.Velocity}",
             $"Current Color: {_biome!.ColorFadeEffect.CurrentColor.ToStringRepresentation()}",
-            $"Target Color: {_biome.ColorFadeEffect.TargetColor.ToStringRepresentation()}");
+            $"Target Color: {_biome.ColorFadeEffect.TargetColor.ToStringRepresentation()}",
+            $"Credits Animating? {_credits.Animate}",
+            $"Credits Out of Bounds? {_credits.OutOfBounds}",
+            $"Credits Position: {_credits.Position.ToStringRepresentation()}");
         var enemies = new List<string>(_enemies!.Count);
         for (int i = 0; i < _enemies.Count; i++)
             enemies.Add($"Enemy {i + 1} Passed? {_enemies[i].IsPassed}");
@@ -135,10 +144,6 @@ internal static class Program {
 
         if (_player.IsDead)
             _notificationText.Draw();
-
-        if(_credits.Animate && !_credits.OutOfBounds) {
-            _credits.Draw();
-        }
 
         _gameTitle.Draw();
 
@@ -165,7 +170,12 @@ and you are welcome to redistribute it under certain conditions.", _font, 0.02f,
         // Will need to center justify the text and make a
         // string builder of some sort that shoves the
         // credits into this little byVal string
-        _credits = new(_rendererPtr, 1f, "Programmer\nBlizzardo1", _font, FontSize * 2, Scale);
+        _credits = new(_rendererPtr, 1f, "Credits", _font, FontSize * 2, Scale);
+        _credits.AddCredits("Programmers", "Blizzardo1");
+        _credits.AddCredits("Designer", "Blizzardo1", "Bearster");
+        _credits.AddCredits("Created Using", "SDL 3", "SharpSdl3", "C# Programming Language");
+        _credits.AddCredits("Special Thanks", "Bearster", "Twitch Live Stream", "You");
+        
 
         _player = new Player(_rendererPtr, Scale);
         _enemies = new List<Enemy>(5);
@@ -185,7 +195,10 @@ and you are welcome to redistribute it under certain conditions.", _font, 0.02f,
             $"Position Y: {_player.Position.Y}",
             $"Velocity: {_player.Velocity}",
             $"Current Color: ",
-            $"Target Color: ");
+            $"Target Color: ",
+            $"Credits Animating? ",
+            $"Credits Out of Bounds? ",
+            $"Credits Position: ");
 
         UpdateWindowDimensions();
         var enemiesList = new List<string>(_enemies.Count);
@@ -299,24 +312,30 @@ and you are welcome to redistribute it under certain conditions.", _font, 0.02f,
                             _licenseText.Animated = true;
                             break;
                         }
+                        if(_credits.Animate) {
+                            _credits.Animate = false;
+                            break;
+                        }
                         _isRunning = false;
                         break;
                     case Scancode.F2:
+                        if (_credits.Animate) break;
                         if (_isFirstRun)
                             _isFirstRun = false;
                         _biome.FramesToTriggerFade = 0;
                         Reset();
                         break;
                     case Scancode.F1:
+                        if (_credits.Animate) break;
                         _isPaused = true;
                         _isLicenseShown = true;
                         _licenseText.Animated = true;
                         _licenseText.UseUpdate = false;
                         break;
                     case Scancode.F3:
-                        if(!_credits.Animate)
-                            // Accurate; however, OutOfBounds triggers before screen can 
-                            _credits.CenterObject(0, (Height / 2) - 1);
+                        _credits.Reset();
+                        if (!_credits.Animate)
+                            _credits.UpdatePosition((Width / 2) - (_credits.Position.X + _credits.Position.W / 2), Height + 2);
                         _credits.TextDirection = Direction.Up;
                         _credits.Animate = true;
                         break;
@@ -362,9 +381,7 @@ and you are welcome to redistribute it under certain conditions.", _font, 0.02f,
         _gameTitle.Update(sdlEvent);
         _gameTitle.UpdatePosition((Width / 2) - (_gameTitle.Position.W / 2), _gameTitle.Position.Y);
 
-        if (_credits.Animate && !_credits.OutOfBounds) {
-            _credits.Update(sdlEvent);
-        }
+        _credits.Update(sdlEvent);        
 
         if (_isTutorial) {
             var enemy = _enemies.Count > 0 ? _enemies[0] : null;
